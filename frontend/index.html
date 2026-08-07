@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CyberLab — Entraînement Pentest & SOC</title>
+<style>
+  :root{
+    --ink:#0b0f14; --panel:#121822; --panel2:#0e141d; --line:#1f2a37;
+    --txt:#e6edf3; --dim:#8aa0b4; --accent:#ff6a3d; --ok:#3ddc97; --soc:#4aa8ff;
+    --mono:"SFMono-Regular",ui-monospace,"Cascadia Code",Menlo,monospace;
+    --sans:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--txt);font-family:var(--sans);line-height:1.5}
+  a{color:var(--accent);text-decoration:none}
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel2);
+    position:sticky;top:0;z-index:10}
+  .brand{font-family:var(--mono);font-weight:700;letter-spacing:.5px}
+  .brand b{color:var(--accent)}
+  .brand span{color:var(--dim);font-weight:400}
+  nav button,.btn{font-family:var(--sans);background:transparent;color:var(--dim);
+    border:1px solid transparent;padding:7px 12px;border-radius:7px;cursor:pointer;font-size:14px}
+  nav button:hover{color:var(--txt)}
+  nav button.active{color:var(--txt);border-color:var(--line);background:var(--panel)}
+  .btn-primary{background:var(--accent);color:#160a04;border:none;font-weight:600;
+    padding:9px 16px;border-radius:8px;cursor:pointer}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{border:1px solid var(--line);color:var(--txt);background:var(--panel)}
+  main{max-width:1040px;margin:0 auto;padding:28px 22px}
+  .pill{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;
+    border:1px solid var(--line);color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+  .pill.pentest{color:var(--accent);border-color:#3a2218}
+  .pill.soc{color:var(--soc);border-color:#16314d}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;cursor:pointer;transition:.15s}
+  .card:hover{border-color:#34465a;transform:translateY(-2px)}
+  .card h3{margin:10px 0 6px;font-size:17px}
+  .card p{color:var(--dim);font-size:14px;margin:0}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .task{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin:16px 0}
+  .task h2{margin-top:0;font-size:18px}
+  .task .content{color:#cdd9e5;font-size:15px;white-space:pre-wrap}
+  .q{border-top:1px solid var(--line);margin-top:16px;padding-top:16px}
+  .q.solved{opacity:.7}
+  .q label{display:block;color:var(--dim);font-size:13px;margin-bottom:8px}
+  .q .qrow{display:flex;gap:8px}
+  .q input{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    padding:10px;border-radius:8px;font-family:var(--mono)}
+  .tag-pts{font-family:var(--mono);font-size:12px;color:var(--ok)}
+  .check{color:var(--ok);font-family:var(--mono)}
+  .console{background:#06080b;border:1px solid var(--line);border-radius:12px;padding:16px;
+    font-family:var(--mono);font-size:13px;margin:18px 0}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#52606d;margin-right:7px}
+  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .console a{word-break:break-all}
+  form.auth{max-width:360px;margin:8px auto;background:var(--panel);border:1px solid var(--line);
+    padding:24px;border-radius:12px}
+  form.auth input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    padding:11px;border-radius:8px;margin:7px 0;font-family:var(--mono)}
+  .muted{color:var(--dim);font-size:13px}
+  .err{color:var(--accent);font-size:13px;min-height:18px}
+  table{width:100%;border-collapse:collapse}
+  td,th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:14px}
+  th{color:var(--dim);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.6px}
+  .lead{font-family:var(--mono);color:var(--ok)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>cyber</b>lab <span>// pentest &amp; soc</span></div>
+  <nav id="nav"></nav>
+</header>
+<main id="app"></main>
+
+<script>
+const API = (location.port === "8080") ? `http://${location.hostname}:8000` : "http://localhost:8000";
+const S = { token: localStorage.getItem("tok"), user: localStorage.getItem("usr"), view:"rooms", filter:"pentest", room:null };
+
+function h(html){ const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild; }
+async function api(path, opts={}){
+  const headers = opts.headers || {};
+  if(S.token) headers["Authorization"] = "Bearer "+S.token;
+  if(opts.json){ headers["Content-Type"]="application/json"; opts.body=JSON.stringify(opts.json); delete opts.json; }
+  const r = await fetch(API+path, {...opts, headers});
+  if(r.status===401){ logout(); throw new Error("Session expirée"); }
+  return r;
+}
+function logout(){ S.token=null;S.user=null; localStorage.clear(); render(); }
+
+function navbar(){
+  const n=document.getElementById("nav"); n.innerHTML="";
+  if(S.token){
+    [["rooms","Labos"],["leaderboard","Classement"],["me","Profil"]].forEach(([v,l])=>{
+      const b=h(`<button class="${S.view===v?'active':''}">${l}</button>`);
+      b.onclick=()=>{S.view=v;S.room=null;render();}; n.appendChild(b);
+    });
+    const o=h(`<button>Déconnexion</button>`); o.onclick=logout; n.appendChild(o);
+  } else {
+    const b=h(`<button class="active">Connexion</button>`); b.onclick=()=>{S.view="auth";render();}; n.appendChild(b);
+  }
+}
+
+async function render(){
+  navbar();
+  const app=document.getElementById("app"); app.innerHTML="";
+  if(!S.token){ return viewAuth(app); }
+  if(S.view==="rooms" && S.room) return viewRoom(app, S.room);
+  if(S.view==="rooms") return viewRooms(app);
+  if(S.view==="leaderboard") return viewBoard(app);
+  if(S.view==="me") return viewMe(app);
+}
+
+/* ---------- Auth ---------- */
+function viewAuth(app){
+  let mode="login";
+  const box=h(`<div></div>`);
+  const draw=()=>{
+    box.innerHTML="";
+    const f=h(`<form class="auth">
+      <h2 style="margin-top:0">${mode==="login"?"Connexion":"Créer un compte"}</h2>
+      <input name="username" placeholder="Nom d'utilisateur" autocomplete="username">
+      ${mode==="register"?`<input name="email" placeholder="Email" type="email">`:""}
+      <input name="password" type="password" placeholder="Mot de passe" autocomplete="current-password">
+      <div class="err"></div>
+      <button class="btn-primary" style="width:100%;margin-top:6px" type="submit">
+        ${mode==="login"?"Se connecter":"S'inscrire"}</button>
+      <p class="muted" style="text-align:center;margin-bottom:0">
+        ${mode==="login"?"Pas de compte ?":"Déjà inscrit ?"}
+        <a href="#" id="sw">${mode==="login"?"Créer un compte":"Connexion"}</a></p>
+      <p class="muted" style="text-align:center">Démo admin : <code>admin / admin1234</code></p>
+    </form>`);
+    f.querySelector("#sw").onclick=(e)=>{e.preventDefault();mode=mode==="login"?"register":"login";draw();};
+    f.onsubmit=async(e)=>{
+      e.preventDefault();
+      const fd=new FormData(f), err=f.querySelector(".err"); err.textContent="";
+      try{
+        let token, usr;
+        if(mode==="login"){
+          const body=new URLSearchParams({username:fd.get("username"),password:fd.get("password")});
+          const r=await fetch(API+"/api/auth/login",{method:"POST",body});
+          if(!r.ok) throw new Error((await r.json()).detail);
+          const d=await r.json(); token=d.access_token; usr=d.username;
+        } else {
+          const r=await fetch(API+"/api/auth/register",{method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({username:fd.get("username"),email:fd.get("email"),password:fd.get("password")})});
+          if(!r.ok) throw new Error((await r.json()).detail);
+          const d=await r.json(); token=d.token; usr=d.username;
+        }
+        S.token=token; S.user=usr; localStorage.setItem("tok",token); localStorage.setItem("usr",usr);
+        S.view="rooms"; render();
+      }catch(ex){ err.textContent = ex.message || "Erreur"; }
+    };
+    box.appendChild(f);
+  };
+  draw(); app.appendChild(box);
+}
+
+/* ---------- Rooms ---------- */
+async function viewRooms(app){
+  const head=h(`<div class="row" style="justify-content:space-between;margin-bottom:18px">
+    <div class="row">
+      <button class="btn ${S.filter==='pentest'?'btn-ghost':''}" data-f="pentest">Pentest</button>
+      <button class="btn ${S.filter==='soc'?'btn-ghost':''}" data-f="soc">Analyse SOC</button>
+    </div></div>`);
+  head.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{S.filter=b.dataset.f;render();});
+  app.appendChild(head);
+  const grid=h(`<div class="grid"></div>`); app.appendChild(grid);
+  const rooms=await (await api(`/api/rooms?category=${S.filter}`)).json();
+  if(!rooms.length){ grid.appendChild(h(`<p class="muted">Aucun labo dans cette catégorie pour l'instant.</p>`)); }
+  rooms.forEach(r=>{
+    const c=h(`<div class="card">
+      <div class="row" style="justify-content:space-between">
+        <span class="pill ${r.category}">${r.category}</span>
+        <span class="pill">${r.difficulty}</span></div>
+      <h3>${r.title}</h3><p>${r.summary||""}</p>
+      <p class="muted" style="margin-top:10px">${r.has_machine?"⚙ machine à lancer":"📄 analyse de fichiers"}</p>
+    </div>`);
+    c.onclick=()=>{S.room=r.slug;render();};
+    grid.appendChild(c);
+  });
+}
+
+/* ---------- Room detail ---------- */
+async function viewRoom(app, slug){
+  const room=await (await api(`/api/rooms/${slug}`)).json();
+  const back=h(`<a href="#">&larr; Tous les labos</a>`); back.onclick=(e)=>{e.preventDefault();S.room=null;render();};
+  app.appendChild(back);
+  app.appendChild(h(`<div class="row" style="margin:10px 0 4px"><span class="pill ${room.category}">${room.category}</span>
+    <span class="pill">${room.difficulty}</span></div>`));
+  app.appendChild(h(`<h1 style="margin:6px 0">${room.title}</h1>`));
+
+  if(room.has_machine){
+    const con=h(`<div class="console">
+      <div class="row" style="justify-content:space-between">
+        <span><span class="dot" id="dot"></span><span id="st">machine arrêtée</span></span>
+        <span><button class="btn-primary" id="start">Démarrer la machine</button>
+        <button class="btn btn-ghost" id="stop">Arrêter</button></span>
+      </div><div id="url" style="margin-top:10px"></div></div>`);
+    app.appendChild(con);
+    const setRunning=(d)=>{ con.querySelector("#dot").classList.add("on");
+      con.querySelector("#st").textContent="machine en cours d'exécution";
+      con.querySelector("#url").innerHTML = d.url?`Cible : <a href="${d.url}" target="_blank">${d.url}</a>`:""; };
+    con.querySelector("#start").onclick=async()=>{
+      con.querySelector("#st").textContent="démarrage…";
+      try{ const r=await api(`/api/rooms/${slug}/lab/start`,{method:"POST"});
+        const d=await r.json(); if(!r.ok) throw new Error(d.detail); setRunning(d);
+      }catch(ex){ con.querySelector("#st").textContent="échec : "+ex.message; }
+    };
+    con.querySelector("#stop").onclick=async()=>{ await api(`/api/rooms/${slug}/lab/stop`,{method:"POST"});
+      con.querySelector("#dot").classList.remove("on"); con.querySelector("#st").textContent="machine arrêtée";
+      con.querySelector("#url").innerHTML=""; };
+  }
+
+  room.tasks.forEach(t=>{
+    const el=h(`<div class="task"><h2>${t.title}</h2><div class="content">${t.content||""}</div></div>`);
+    t.questions.forEach(q=>{
+      const qe=h(`<div class="q ${q.solved?'solved':''}">
+        <label>${q.prompt} <span class="tag-pts">+${q.points} pts</span></label>
+        ${q.solved?`<div class="check">✔ Résolu</div>`:
+        `<div class="qrow"><input placeholder="Votre réponse / flag">
+          <button class="btn-primary">Valider</button></div>
+          <div class="err"></div>
+          ${q.hint?`<p class="muted" style="margin:6px 0 0">💡 ${q.hint}</p>`:""}`}
+      </div>`);
+      if(!q.solved){
+        const inp=qe.querySelector("input"), btn=qe.querySelector("button"), err=qe.querySelector(".err");
+        const go=async()=>{ err.textContent="";
+          const r=await api(`/api/questions/${q.id}/submit`,{method:"POST",json:{answer:inp.value}});
+          const d=await r.json();
+          if(d.correct){ qe.classList.add("solved");
+            qe.innerHTML=`<label>${q.prompt} <span class="tag-pts">+${q.points} pts</span></label><div class="check">✔ Correct !</div>`; }
+          else { err.textContent="Réponse incorrecte, réessayez."; }
+        };
+        btn.onclick=go; inp.onkeydown=(e)=>{if(e.key==="Enter")go();};
+      }
+      el.appendChild(qe);
+    });
+    app.appendChild(el);
+  });
+}
+
+/* ---------- Leaderboard ---------- */
+async function viewBoard(app){
+  const rows=await (await api("/api/leaderboard")).json();
+  const t=h(`<div><h1>Classement</h1><table><thead><tr><th>#</th><th>Utilisateur</th><th>Points</th></tr></thead><tbody></tbody></table></div>`);
+  const tb=t.querySelector("tbody");
+  rows.forEach((r,i)=>tb.appendChild(h(`<tr><td>${i+1}</td><td>${r.username}</td><td class="lead">${r.points}</td></tr>`)));
+  app.appendChild(t);
+}
+
+/* ---------- Profile ---------- */
+async function viewMe(app){
+  const m=await (await api("/api/me")).json();
+  app.appendChild(h(`<div><h1>${m.username}</h1>
+    <div class="grid">
+      <div class="card" style="cursor:default"><p class="muted">Points</p><h3 class="lead">${m.points}</h3></div>
+      <div class="card" style="cursor:default"><p class="muted">Questions résolues</p><h3 class="lead">${m.solved}</h3></div>
+      <div class="card" style="cursor:default"><p class="muted">Rôle</p><h3>${m.is_admin?"Administrateur":"Apprenant"}</h3></div>
+    </div></div>`));
+}
+
+render();
+</script>
+</body>
+</html>

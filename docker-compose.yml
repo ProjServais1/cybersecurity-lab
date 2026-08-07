@@ -1,0 +1,36 @@
+# CyberLab — orchestration. `docker compose up` fonctionne identiquement
+# sous Windows, macOS et Linux : c'est la couche de portabilité.
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=changez-cette-cle-en-prod
+      - DATABASE_URL=sqlite:////data/cyberlab.db
+      - LAB_NETWORK=cyberlab_labnet
+    volumes:
+      - cyberlab_data:/data
+      # Accès au démon Docker pour lancer les machines de labo à la demande.
+      # ⚠️ Donne des privilèges élevés : à n'utiliser qu'en environnement de
+      # confiance. En multi-utilisateurs réel, isolez via un orchestrateur dédié.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [cyberlab_labnet]
+    restart: unless-stopped
+
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on: [api]
+    networks: [cyberlab_labnet]
+    restart: unless-stopped
+
+volumes:
+  cyberlab_data:
+
+networks:
+  cyberlab_labnet:
+    name: cyberlab_labnet
